@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 
 def calcularVelocidades (p0,p1,p2,deltaT):
     vx = (p0[0] - p1[0])/deltaT
-    vy = -(p0[1] - p1[1])/deltaT
+    vy = (p0[1] - p1[1])/deltaT
 
     vx2 = (p1[0] - p2[0])/deltaT
-    vy2 = -(p1[1] - p2[1])/deltaT
+    vy2 = (p1[1] - p2[1])/deltaT
 
     return vx,vy,vx2,vy2
 
@@ -21,34 +21,62 @@ def calcularAceleraciones (vx,vy,vx2,vy2,deltaT):
 
     return ax,ay
 
-# Set up tracker.
+tickInicio = 0
+tickFin = 40
+bbox = (0,0,0,0)
+print("1) Tiro_encesto1\n2) Tiro_encesto2\n3) Tiro_encesto3\n4) Tiro_erro1")
+seleccion = int(input("Seleccione video: "))
+
+match(seleccion):
+    case 1:
+        tickInicio = 2
+        tickFin = 37
+        bbox = (304,493,44,48)
+        videoSeleccionado = "Tiro_encesto1.mp4"
+    case 2:
+        tickInicio = 1
+        tickFin = 37
+        bbox = (483,476,35,36)
+        videoSeleccionado = "Tiro_encesto2.mp4"
+    case 3:
+        tickInicio = 9
+        tickFin = 47
+        bbox = (345, 403, 25, 25)
+        videoSeleccionado = "Tiro_encesto3.mp4"
+    case 4:
+        tickInicio = 0
+        tickFin = 40
+        bbox = (496,528,35,39)
+        videoSeleccionado = "Tiro_erro1.mp4"
+
 tracker = cv2.TrackerCSRT_create()
-# Read video
-video = cv2.VideoCapture("Basket1.mp4")
-
-# Read first frame.
+video = cv2.VideoCapture(videoSeleccionado)
 ok, frame = video.read()
-
-# Define an initial bounding box
-bbox = (345, 403, 25, 25)
-#bbox = cv2.selectROI(frame, False)
 
 # Initialize tracker with first frame and bounding box
 ok = tracker.init(frame, bbox)
 
 print("bound inicial:")
 print(bbox[0],bbox[1],bbox[2],bbox[3])
-xinicial=bbox[0]+(bbox[2]/2)
-yinicial=bbox[1]+(bbox[3]/2)
+xinicial=int(bbox[0]+(bbox[2]/2))
+yinicial=int(bbox[1]+(bbox[3]/2))
+vxinicial = 0
+vyinicial = 0
+ayinicial = 0
+ancho = video.get(cv2.CAP_PROP_FRAME_WIDTH)
+alto = video.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
 #Para determinar la velocidad vamos a comparar 2 puntos y para la aceleracion comparamos 2 velocidades
-p0=(xinicial,yinicial)
+pInicial =(xinicial,yinicial)
+p0 = pInicial
 p1=(0,0)
 p2=(0,0)
 
 tiempoInicial = time.perf_counter()
 tiempoPrev = tiempoInicial
 numtick = 0
+crearIniciales = False
+crearVelocidades = False
 
 lAvgAX = []
 lAvgAY = []
@@ -58,169 +86,161 @@ lAvgVY = []
 lT_TOTAL = []
 lX_TOTAL = []
 lY_TOTAL = []
-lX_TOTAL2 = []
-lY_TOTAL2 = []
+lAY_TOTAL = []
+lAX_TOTAL = []
+lVX_TOTAL = []
 
-lAvgAY_TOTAL = []
-lAvgAX_TOTAL = []
-lAvgVX_TOTAL = []
-
+lTodosLosResultados = [] # lista de septuplas de la forma(t,x,y,vx,vy,ax,ay)
 cut = False
 while True:
     numtick+=1
+    print(numtick,ok)
     # Read a new frame
-    _, frame = video.read()
+    ok, frame = video.read()
     
     if (cut):
         break
 
     # Update tracker
-    _, bbox = tracker.update(frame)
+    ok, bbox = tracker.update(frame)
 
-    if (10<numtick<47):
-        
+    if (ok and tickInicio<numtick<tickFin):
         centre1 = (int(bbox[0]), int(bbox[1]))
         centre2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
         cv2.rectangle(frame, centre1, centre2, (255,0,0), 2, 1)
         p2=p1
         p1=p0
         p0=(int(bbox[0]+(bbox[2]/2)),int(bbox[1]+(bbox[3]/2)))
-        lX_TOTAL.append(p0[0])
-        lY_TOTAL.append(720-p0[1])
-        if(p2[0]!=0): #cuando los 3 puntos existan
+        if(p2[0]!=0): #cuando los 3 puntos 
+            if(not crearIniciales):
+                xinicial=p0[0]
+                yinicial=p0[1]
+                crearIniciales = True
             tiempoActual = time.perf_counter()-tiempoInicial
             deltaT = tiempoActual-tiempoPrev
             tiempoPrev = tiempoActual
             lT_TOTAL.append(tiempoActual)
-            vx,vy,_,_ = calcularVelocidades(p0,p1,p2,deltaT)
-            ax,ay = calcularAceleraciones(*calcularVelocidades(p0,p1,p2,deltaT),deltaT)
+            vx,vy,vx2,vy2 = calcularVelocidades(p0,p1,p2,deltaT)
+            ax,ay = calcularAceleraciones(vx,vy,vx2,vy2,deltaT)
 
             lAvgAX.append(ax)
             lAvgAY.append(ay)
             lAvgVX.append(vx)
             lAvgVY.append(vy)
 
-            lAvgAY_TOTAL.append(ay)
-            lAvgAX_TOTAL.append(ax)
-            lAvgVX_TOTAL.append(vx)
+            lAY_TOTAL.append(ay)
+            lAX_TOTAL.append(ax)
+            lVX_TOTAL.append(vx)
 
-            #esmitacion promedio (a mejorar)
-            vx = sum(lAvgVX)/len(lAvgVX)
-            vy = sum(lAvgVY)/len(lAvgVY)
-            ax = sum(lAvgAX)/len(lAvgAX)
-            ay = sum(lAvgAY)/len(lAvgAY)
+            lX_TOTAL.append(p0[0])
+            lY_TOTAL.append(video.get(4)-p0[1])
+            
+            lTodosLosResultados.append((tiempoActual.__round__(2),p0[0],p0[1],vx.__round__(2),vy.__round__(2),ax.__round__(2),ay.__round__(2)))
 
-            maximo = 6
+            # estimacion promedio (a mejorar)
+            maximo = 4
             if(len(lAvgVX)>maximo):
                 lAvgVX.pop(0)
-            if(len(lAvgVY)>maximo):
                 lAvgVY.pop(0)
-            if(len(lAvgAX)>maximo):
                 lAvgAX.pop(0)
-            if(len(lAvgAY)>maximo):
                 lAvgAY.pop(0)
-            
-            thetaV = np.arctan(vy/(vx+0.01))
-            thetaA = np.arctan(ay/(ax+0.01))
-            magV = np.sqrt(vx**2+vy**2)
-            magA = np.sqrt(ax**2+ay**2)
-            
-            if(numtick<46):
-                #defino las funciones que describen a X respecto a T               
-                tx = sympy.Symbol("tx")
-                ax_t = ax.__round__(2)
-                vx_t = sympy.integrate(ax_t,tx) + vx.__round__(2)
-                rx_t = sympy.integrate(vx_t,tx) + xinicial 
-                aceleracionX = sympy.lambdify(tx,ax_t)
-                velocidadX = sympy.lambdify(tx,vx_t)
-                trayectoriaX = sympy.lambdify(tx,rx_t)
+                vx = sum(lAvgVX)/(len(lAvgVX)+1)
+                vy = sum(lAvgVY)/(len(lAvgVY)+1)
+                # ax = sum(lAvgAX)/(len(lAvgAX)+1)
+                ay = sum(lAvgAY)/(len(lAvgAY)+1)
+                if(not crearVelocidades):
+                    vxinicial=vx
+                    vyinicial=vy
+                    crearVelocidades = True
 
-                #defino las funciones que describen a Y respecto a T
-                ty = sympy.Symbol("ty")
-                ay_t = ay.__round__(2)
-                vy_t = sympy.integrate(ay_t,ty) + vy.__round__(2)
-                ry_t = sympy.integrate(vy_t,ty) + yinicial 
-                aceleracionY = sympy.lambdify(ty,ay_t)
-                velocidadY = sympy.lambdify(ty,vy_t)
-                trayectoriaY = sympy.lambdify(ty,ry_t)
-            else:
-                # si estoy en el ultimo tick saco el promedio final
-                ax = sum(lAvgAX_TOTAL)/len(lAvgAX_TOTAL)
-                ay = sum(lAvgAY_TOTAL)/len(lAvgAY_TOTAL)
-                vx = sum(lAvgVX_TOTAL)/len(lAvgVX_TOTAL)
-             
-                tx = sympy.Symbol("tx")
-                ax_t = ax.__round__(2)
-                vx_t = sympy.integrate(ax_t,tx) + vx.__round__(2)
-                rx_t = sympy.integrate(vx_t,tx) + xinicial 
-                aceleracionX = sympy.lambdify(tx,ax_t)
-                velocidadX = sympy.lambdify(tx,vx_t)
-                trayectoriaX = sympy.lambdify(tx,rx_t)
-
-                ty = sympy.Symbol("ty")
-                ay_t = ay.__round__(2)
-                vy_t = sympy.integrate(ay_t,ty) + vy.__round__(2)
-                ry_t = sympy.integrate(vy_t,ty) + yinicial 
-                aceleracionY = sympy.lambdify(ty,ay_t)
-                velocidadY = sympy.lambdify(ty,vy_t)
-                trayectoriaY = sympy.lambdify(ty,ry_t)
-                cut = True
-
-            
             #vectores con coordenadas
-            cv2.arrowedLine(frame,p0,(int(p0[0]+vx),int(p0[1]+vy)),(160,0,160),3)
-            cv2.arrowedLine(frame,p0,(int(p0[0]+ax),int(p0[1]+ay)),(230,230,0),3)
+            cv2.arrowedLine(frame,p0,(int(p0[0]+vx/2),int(p0[1]+vy/2)),(160,0,160),3)
+            cv2.arrowedLine(frame,p0,(int(p0[0]),int(p0[1]+ay/2)),(230,230,0),3)
+            if(numtick>=tickFin-1):
+                # si estoy en el ultimo tick saco el promedio final
+                ayinicial = sum(lAY_TOTAL)/len(lAY_TOTAL)
 
-            stringA_T = "a(t): {}"
-            stringV_T = "v(t): {}"
-            stringR_T = "r(t): {}"
-            stringAcc = "a({:0.2f}): {:0.2f}"
-            stringVel = "v({:0.2f}): {:0.2f}"
-            stringTra = "r({:0.2f}): {:0.2f}"
+                tx = sympy.Symbol("tx")
+                ax_t = 0
+                vx_t = vxinicial.__round__(2)
+                rx_t = sympy.integrate(vx_t,tx) + xinicial 
+                aceleracionX = sympy.lambdify(tx,ax_t)
+                velocidadX = sympy.lambdify(tx,vx_t)
+                trayectoriaX = sympy.lambdify(tx,rx_t)
 
-            print(f"(t: {tiempoActual:0.2f}, x:{p0[0]}, y:{p0[1]})")
-            print("Descripcion de X respecto a T:")
-            print(f"{stringA_T.format(ax_t):26}", end='')
-            print(f"{stringV_T.format(vx_t):26}", end='')
-            print(f"{stringR_T.format(rx_t):26}")
-            print(f"{stringAcc.format(float(tiempoActual),aceleracionX(float(tiempoActual))):26}", end='')
-            print(f"{stringVel.format(float(tiempoActual),velocidadX(float(tiempoActual))):26}", end='')
-            print(f"{stringTra.format(float(tiempoActual),trayectoriaX(float(tiempoActual))):26}", end='\n'*2)
+                ty = sympy.Symbol("ty")
+                ay_t = ayinicial.__round__(2)
+                vy_t = sympy.integrate(ay_t,ty) + vyinicial.__round__(2)
+                ry_t = sympy.integrate(vy_t,ty) + yinicial 
+                aceleracionY = sympy.lambdify(ty,ay_t)
+                velocidadY = sympy.lambdify(ty,vy_t)
+                trayectoriaY = sympy.lambdify(ty,ry_t)
+                stringA_T = "a(t): {}"
+                stringV_T = "v(t): {}"
+                stringR_T = "r(t): {}"
+                stringAcc = "a({:0.2f}): {:0.2f}"
+                stringVel = "v({:0.2f}): {:0.2f}"
+                stringTra = "r({:0.2f}): {:0.2f}"
+                # separar los strings cada 26 caracteres
+                print(f"(t: {tiempoActual:0.2f}, x:{p0[0]}, y:{p0[1]})")
+                print("Descripcion de X respecto a T:")
+                print(f"{stringA_T.format(ax_t):26}", end='')
+                print(f"{stringV_T.format(vx_t):26}", end='')
+                print(f"{stringR_T.format(rx_t):26}")
+                print(f"{stringAcc.format(float(tiempoActual),aceleracionX(float(tiempoActual))):26}", end='')
+                print(f"{stringVel.format(float(tiempoActual),velocidadX(float(tiempoActual))):26}", end='')
+                print(f"{stringTra.format(float(tiempoActual),trayectoriaX(float(tiempoActual))):26}", end='\n'*2)
 
-            print("Descripcion de Y respecto a T:")
-            print(f"{stringA_T.format(ay_t):26}", end='')
-            print(f"{stringV_T.format(vy_t):26}", end='')
-            print(f"{stringR_T.format(ry_t):26}")
-            print(f"{stringAcc.format(float(tiempoActual),aceleracionY(float(tiempoActual))):26}", end='')
-            print(f"{stringVel.format(float(tiempoActual),velocidadY(float(tiempoActual))):26}", end='')
-            print(f"{stringTra.format(float(tiempoActual),trayectoriaY(float(tiempoActual))):26}", end='\n'*2)
+                print("Descripcion de Y respecto a T:")
+                print(f"{stringA_T.format(ay_t):26}", end='')
+                print(f"{stringV_T.format(vy_t):26}", end='')
+                print(f"{stringR_T.format(ry_t):26}")
+                print(f"{stringAcc.format(float(tiempoActual),aceleracionY(float(tiempoActual))):26}", end='')
+                print(f"{stringVel.format(float(tiempoActual),velocidadY(float(tiempoActual))):26}", end='')
+                print(f"{stringTra.format(float(tiempoActual),trayectoriaY(float(tiempoActual))):26}", end='\n'*2)
+                cut=True
 
             if(cut):
-                cv2.waitKey(-1)
                 break
-                       
-    # else :
-    #     # Tracking failure
-    #     cv2.putText(frame, "Tracking failure detected", (100,80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-
+            
     # Display result
+
+
     cv2.imshow("GinobiLib", frame)
-    # dominioX = np.linspace(0,25,500) #500 puntos de 0 a 15  
-#np.arrange(0,15,0.1) x puntos separados por 0.1 (15/0.1 puntos)
-
-    
-
     # Exit if ESC pressed
     k = cv2.waitKey(1) & 0xff
-    if k == 27 : break
+    if k == 27 :
+        break
 
 cv2.imshow("GinobiLib", frame)
-prediccionX = []
-prediccionY = []
-for i in range(len(lT_TOTAL)):
-    prediccionX.append(trayectoriaX(lT_TOTAL[i]))
-    prediccionY.append(trayectoriaY(lT_TOTAL[i]))
 
-plt.plot(prediccionX,prediccionY)
+dominio = np.linspace(0,tiempoActual+1,250)
+
+plt.figure(figsize=(7,5))
+plt.subplot(121)
+plt.plot(dominio,trayectoriaY(dominio),label="r(t)",color='b')
+plt.plot(dominio,velocidadY(dominio),label="v(t)",color='r')
+plt.axhline(ayinicial,label="a(t)",color='g')
+plt.title("TrayectoriaY")
+plt.xlabel("Tiempo/segs")
+plt.ylabel("Distancia/px")
+plt.xlim((-0.5,tiempoActual))
+plt.ylim((alto,0))
+plt.subplot(121)
+
+k=0.9
+#thetaV = np.arctan((-trayectoriaY(k)-trayectoriaY(k-0.02))/(trayectoriaX(k)-trayectoriaX(k-0.02)))
+thetaV = np.arctan(-velocidadY(k)/velocidadX(k))
+# thetaV = np.pi/2
+plt.quiver(k,trayectoriaY(k), np.cos(thetaV),np.sin(thetaV),scale=1,scale_units='xy',color="r")
+plt.quiver(k,trayectoriaY(k), 0,ay/4,scale=1,scale_units='xy',color="g")
+
+plt.legend()
+plt.show()
+plt.ylim(0,alto)
+plt.xlim(0, ancho)
+plt.scatter(trayectoriaX(dominio),video.get(4)-trayectoriaY(dominio))
 plt.scatter(lX_TOTAL,lY_TOTAL)
-plt.show()  
+plt.show()
+
+#vx inicial == 226
