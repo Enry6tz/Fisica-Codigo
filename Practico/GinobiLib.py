@@ -50,7 +50,7 @@ match(seleccion):
         videoSeleccionado = "Tiro_erro1.mp4"
 
 tracker = cv2.TrackerCSRT_create()
-video = cv2.VideoCapture(videoSeleccionado)
+video = cv2.VideoCapture("Practico\\"+videoSeleccionado)
 ok, frame = video.read()
 
 # Initialize tracker with first frame and bounding box
