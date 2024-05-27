@@ -137,7 +137,7 @@ while True:
             #lTodosLosResultados.append((tiempoActual.__round__(2),p0[0],p0[1],vx.__round__(2),vy.__round__(2),ax.__round__(2),ay.__round__(2)))
 
             # estimacion promedio (a mejorar)
-            maximo = 4
+            maximo = 8
             if(len(lAvgVX)>maximo):
                 lAvgVX.pop(0)
                 lAvgVY.pop(0)
