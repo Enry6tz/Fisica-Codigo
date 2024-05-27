@@ -1,8 +1,8 @@
 import cv2
 import time
 import numpy as np
+import pandas as pd
 import sympy
-import sympy.integrals
 
 import matplotlib.pyplot as plt
 
@@ -94,7 +94,6 @@ lTodosLosResultados = [] # lista de septuplas de la forma(t,x,y,vx,vy,ax,ay)
 cut = False
 while True:
     numtick+=1
-    print(numtick,ok)
     # Read a new frame
     ok, frame = video.read()
     
@@ -119,23 +118,23 @@ while True:
             tiempoActual = time.perf_counter()-tiempoInicial
             deltaT = tiempoActual-tiempoPrev
             tiempoPrev = tiempoActual
-            lT_TOTAL.append(tiempoActual)
+            lT_TOTAL.append(tiempoActual.__round__(3))
             vx,vy,vx2,vy2 = calcularVelocidades(p0,p1,p2,deltaT)
             ax,ay = calcularAceleraciones(vx,vy,vx2,vy2,deltaT)
 
-            lAvgAX.append(ax)
-            lAvgAY.append(ay)
-            lAvgVX.append(vx)
-            lAvgVY.append(vy)
+            lAvgAX.append(ax.__round__(3))
+            lAvgAY.append(ay.__round__(3))
+            lAvgVX.append(vx.__round__(3))
+            lAvgVY.append(vy.__round__(3))
 
-            lAY_TOTAL.append(ay)
-            lAX_TOTAL.append(ax)
-            lVX_TOTAL.append(vx)
+            lAY_TOTAL.append(ay.__round__(3))
+            lAX_TOTAL.append(ax.__round__(3))
+            lVX_TOTAL.append(vx.__round__(3))
 
             lX_TOTAL.append(p0[0])
             lY_TOTAL.append(video.get(4)-p0[1])
             
-            lTodosLosResultados.append((tiempoActual.__round__(2),p0[0],p0[1],vx.__round__(2),vy.__round__(2),ax.__round__(2),ay.__round__(2)))
+            #lTodosLosResultados.append((tiempoActual.__round__(2),p0[0],p0[1],vx.__round__(2),vy.__round__(2),ax.__round__(2),ay.__round__(2)))
 
             # estimacion promedio (a mejorar)
             maximo = 4
@@ -158,7 +157,7 @@ while True:
             cv2.arrowedLine(frame,p0,(int(p0[0]),int(p0[1]+ay/2)),(230,230,0),3)
             if(numtick>=tickFin-1):
                 # si estoy en el ultimo tick saco el promedio final
-                ayinicial = sum(lAY_TOTAL)/len(lAY_TOTAL)
+                ayinicial = sum(lAY_TOTAL[3:-3])/len(lAY_TOTAL[3:-3])
 
                 tx = sympy.Symbol("tx")
                 ax_t = 0
@@ -219,8 +218,6 @@ dominio = np.linspace(0,tiempoActual+1,250)
 plt.figure(figsize=(7,5))
 plt.subplot(121)
 plt.plot(dominio,trayectoriaY(dominio),label="r(t)",color='b')
-plt.plot(dominio,velocidadY(dominio),label="v(t)",color='r')
-plt.axhline(ayinicial,label="a(t)",color='g')
 plt.title("TrayectoriaY")
 plt.xlabel("Tiempo/segs")
 plt.ylabel("Distancia/px")
@@ -233,14 +230,72 @@ k=0.9
 thetaV = np.arctan(-velocidadY(k)/velocidadX(k))
 # thetaV = np.pi/2
 plt.quiver(k,trayectoriaY(k), np.cos(thetaV),np.sin(thetaV),scale=1,scale_units='xy',color="r")
-plt.quiver(k,trayectoriaY(k), 0,ay/4,scale=1,scale_units='xy',color="g")
+plt.quiver(k,trayectoriaY(k), 0,-ay/4,scale=1,scale_units='xy',color="g")
 
 plt.legend()
 plt.show()
+
+
+plt.figure(figsize=(7,5))
+plt.subplot(121)
+plt.plot(dominio,velocidadY(dominio),label="v(t)",color='r')
+plt.axhline(ayinicial,label="a(t)",color='g')
+plt.ylim(0,alto)
+plt.show()
+
 plt.ylim(0,alto)
 plt.xlim(0, ancho)
-plt.scatter(trayectoriaX(dominio),video.get(4)-trayectoriaY(dominio))
+plt.scatter(trayectoriaX(dominio),alto-trayectoriaY(dominio))
 plt.scatter(lX_TOTAL,lY_TOTAL)
 plt.show()
 
-#vx inicial == 226
+# Crear un DataFrame con los datos
+data = {
+    'Tiempo': lT_TOTAL,
+    'PosX': lX_TOTAL,
+    'PosY': lY_TOTAL,
+    'VelX': lVX_TOTAL,
+    'VelY': lAY_TOTAL,
+    'AcelY': lAY_TOTAL
+}
+# Imprimir las longitudes de cada lista
+for key, value in data.items():
+    print(f"Length of {key}: {len(value)}")
+
+# Alinear las longitudes de las listas
+max_length = max(len(lst) for lst in data.values())
+
+for key in data:
+    if len(data[key]) < max_length:
+        data[key].extend([None] * (max_length - len(data[key])))
+
+df = pd.DataFrame(data)
+
+# Guardar el DataFrame en un archivo CSV
+stringcsv = f"datos_{videoSeleccionado}.csv"
+df.to_csv(stringcsv, index=False)
+
+# for i in range(2,len(lX_TOTAL)):
+#   p2=(lX_TOTAL[i-2],lY_TOTAL[i-2])
+#   p1=(lX_TOTAL[i-1],lY_TOTAL[i-1])
+#   p0=(lX_TOTAL[i],lY_TOTAL[i])
+#   deltaT = lT_TOTAL[i]-lT_TOTAL[i-1]
+#   vx,vy,vx2,vy2 = calcularVelocidades(p0,p1,p2,deltaT)
+#   ax,ay = calcularAceleraciones(vx,vy,vx2,vy2,deltaT)
+
+#   lVX_TOTAL.append(vx.__round__(2))
+#   lVY_TOTAL.append(vy.__round__(2))
+#   lAX_TOTAL.append(ax.__round__(2))
+#   lAY_TOTAL.append(ay.__round__(2))
+
+# # deberiamos aplicar la teoria del error aca
+# # ax = sum(lAvgAX_TOTAL)/len(lAvgAX_TOTAL)
+
+# ayinicial = np.mean(lAY_TOTAL)
+# vxinicial = np.mean(lVX_TOTAL)
+# vyinicial=0
+# sum=0;
+# for i in range(1,5):
+#   sum+=1
+#   vyinicial+=lVY_TOTAL[i]
+# vyinicial/=sum
