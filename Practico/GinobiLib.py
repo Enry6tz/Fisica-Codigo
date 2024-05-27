@@ -118,7 +118,7 @@ while True:
             tiempoActual = time.perf_counter()-tiempoInicial
             deltaT = tiempoActual-tiempoPrev
             tiempoPrev = tiempoActual
-            lT_TOTAL.append(tiempoActual.__round__(3))
+            lT_TOTAL.append(tiempoActual.__round__(3));
             vx,vy,vx2,vy2 = calcularVelocidades(p0,p1,p2,deltaT)
             ax,ay = calcularAceleraciones(vx,vy,vx2,vy2,deltaT)
 
