@@ -3,9 +3,13 @@ import time
 import numpy as np
 import pandas as pd
 import sympy
-
 import matplotlib.pyplot as plt
 
+
+''' 
+    Definimos las funciones que vamos a usar para obtener la
+    velocidad entre 2 puntos y la aceleracion entre 2 velocidades
+'''
 def calcularVelocidades (p0,p1,p2,deltaT):
     vx = (p0[0] - p1[0])/deltaT
     vy = (p0[1] - p1[1])/deltaT
@@ -22,7 +26,7 @@ def calcularAceleraciones (vx,vy,vx2,vy2,deltaT):
     return ax,ay
 
 tickInicio = 0
-tickFin = 40
+tickFin = 0
 bbox = (0,0,0,0)
 print("1) Tiro_encesto1\n2) Tiro_encesto2\n3) Tiro_encesto3\n4) Tiro_erro1")
 seleccion = int(input("Seleccione video: "))
@@ -39,53 +43,68 @@ match(seleccion):
         bbox = (483,476,35,36)
         videoSeleccionado = "Tiro_encesto2.mp4"
     case 3:
-        tickInicio = 9
+        tickInicio = 8
         tickFin = 47
         bbox = (345, 403, 25, 25)
         videoSeleccionado = "Tiro_encesto3.mp4"
     case 4:
-        tickInicio = 0
+        tickInicio = 1
         tickFin = 40
         bbox = (496,528,35,39)
         videoSeleccionado = "Tiro_erro1.mp4"
+
+'''
+    Inicializamos el tracker segun el video seleccionado
+    acomodando manualmente la posicion inicial del Bounding Box
+    del tracker y la cantidad de frames que nos interesan estudiar.
+'''
 
 tracker = cv2.TrackerCSRT_create()
 video = cv2.VideoCapture("Practico\\"+videoSeleccionado)
 ok, frame = video.read()
 
-# Initialize tracker with first frame and bounding box
 ok = tracker.init(frame, bbox)
 
-print("bound inicial:")
-print(bbox[0],bbox[1],bbox[2],bbox[3])
+print(f"Posicion BBOX inicial: [{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}]")
 xinicial=int(bbox[0]+(bbox[2]/2))
 yinicial=int(bbox[1]+(bbox[3]/2))
 vxinicial = 0
 vyinicial = 0
 ayinicial = 0
+
+# Dimensiones del video (resolucion)
 ALTURA, ANCHO, _ = frame.shape
 
 
-#Para determinar la velocidad vamos a comparar 2 puntos y para la aceleracion comparamos 2 velocidades
+#obtenemos un deltaT fijo que depende de la longitud del video y de su framerate
+fps = video.get(cv2.CAP_PROP_FPS)
+#frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+frame_count = tickFin-tickInicio
+duration = frame_count/fps
+deltaT = duration/fps
+
+
 pInicial =(xinicial,yinicial)
 p0 = pInicial
-p1=(0,0)
-p2=(0,0)
+p1=p2=(0,0)
 
-tiempoInicial = time.perf_counter()
-tiempoPrev = tiempoInicial
 tiempoActual = 0
 numtick = 0
 
 alturaMaxima = 0
 tiempo_alturaMaxima = 0
 
+'''
+    En estas listas se guardan todos los datos
+    que luego se exportan en un archivo '.csv'
+'''
 lAvgAX = []
 lAvgAY = []
 lAvgVX = []
 lAvgVY = []
 
 lT_TOTAL = []
+lPos_TOTAL = []
 lX_TOTAL = []
 lY_TOTAL = []
 lAY_TOTAL = []
@@ -93,7 +112,6 @@ lAX_TOTAL = []
 lVX_TOTAL = []
 lVY_TOTAL = []
 
-lTodosLosResultados = [] # lista de septuplas de la forma(t,x,y,vx,vy,ax,ay)
 cut = False
 while True:
     numtick+=1
@@ -107,17 +125,30 @@ while True:
     ok, bbox = tracker.update(frame)
 
     if (ok and tickInicio<numtick<tickFin):
+
+        # Graficamos el bounding box alrededor de la pelota
+
         centre1 = (int(bbox[0]), int(bbox[1]))
         centre2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
         cv2.rectangle(frame, centre1, centre2, (255,0,0), 2, 1)
         p2=p1
         p1=p0
         p0=(int(bbox[0]+(bbox[2]/2)),int(bbox[1]+(bbox[3]/2)))
-        if(p2[0]!=0): #cuando los 3 puntos 
-            tiempoActual = time.perf_counter()-tiempoInicial
-            deltaT = tiempoActual- tiempoPrev
-            tiempoPrev = tiempoActual
-            lT_TOTAL.append(tiempoActual.__round__(3))
+        
+        tiempoActual += deltaT
+        lT_TOTAL.append(tiempoActual.__round__(3))
+
+        lPos_TOTAL.append(p0)
+        lX_TOTAL.append(p0[0])
+        '''
+            Como el origen de coordenadas esta en la esquina superior
+            izquierda la lista de posiciones en Y esta invertida para
+            representar los graficos correctamente
+        '''
+        lY_TOTAL.append(ALTURA-p0[1])
+        
+        # Cuando los 3 puntos existan podemos graficar los vectores velocidad y aceleracion
+        if(p2[0]!=0):
             vx,vy,vx2,vy2 = calcularVelocidades(p0,p1,p2,deltaT)
             ax,ay = calcularAceleraciones(vx,vy,vx2,vy2,deltaT)
 
@@ -126,37 +157,32 @@ while True:
             lAvgVX.append(vx.__round__(3))
             lAvgVY.append(vy.__round__(3))
 
-            lAY_TOTAL.append(ay.__round__(3))
-            lVY_TOTAL.append(vy.__round__(3))
-            lAX_TOTAL.append(ax.__round__(3))
-            lVX_TOTAL.append(vx.__round__(3))
-
-            lX_TOTAL.append(p0[0])
-            lY_TOTAL.append(video.get(4)-p0[1])
-            
-            # estimacion usando un promedio entre 8 frames 
-            maximo = 8
+            # estimacion usando un promedio entre 6 frames 
+            maximo = 6
             if(len(lAvgVX)>maximo):
                 lAvgVX.pop(0)
                 lAvgVY.pop(0)
                 lAvgAX.pop(0)
                 lAvgAY.pop(0)
-                vx = sum(lAvgVX)/(len(lAvgVX)+1)
-                vy = sum(lAvgVY)/(len(lAvgVY)+1)
+                vx = sum(lAvgVX)/(len(lAvgVX))
+                vy = sum(lAvgVY)/(len(lAvgVY))
                 # ax = sum(lAvgAX)/(len(lAvgAX)+1)
-                ay = sum(lAvgAY)/(len(lAvgAY)+1)
+                ay = sum(lAvgAY)/(len(lAvgAY))
 
             if(alturaMaxima<p0[1]):
                 alturaMaxima = p0[1]
                 tiempo_alturaMaxima = tiempoActual
-            #vectores con coordenadas
+
+            # Graficamos los vectores
             cv2.arrowedLine(frame,p0,(int(p0[0]+vx/2),int(p0[1]+vy/2)),(160,0,160),3)
             cv2.arrowedLine(frame,p0,(int(p0[0]),int(p0[1]+ay/2)),(230,230,0),3)
-            if(numtick>=tickFin-1):
-                break
+        if(numtick>=tickFin-1):
+            break
 
     # Display result
     cv2.imshow("GinobiLib", frame)
+    cv2.setWindowProperty("GinobiLib", cv2.WND_PROP_TOPMOST, 1)
+
     # Exit if ESC pressed
     k = cv2.waitKey(1) & 0xff
     if k == 27 :
@@ -164,9 +190,20 @@ while True:
 
 cv2.imshow("GinobiLib", frame)
 
-ayinicial = sum(lAY_TOTAL[4:-4])/len(lAY_TOTAL[4:-4])
-#vyinicial = -ayinicial * tiempo_alturaMaxima
-vyinicial = sum(lVY_TOTAL[1:5])/len(lVY_TOTAL[1:5])
+for i in range(2,len(lPos_TOTAL)):
+
+    vx,vy,vx2,vy2 = calcularVelocidades(lPos_TOTAL[i-2],lPos_TOTAL[i-1],lPos_TOTAL[i],deltaT)
+    ax,ay = calcularAceleraciones(vx,vy,vx2,vy2,deltaT)
+    
+    lVX_TOTAL.append(vx.__round__(3))
+    lVY_TOTAL.append(vy.__round__(3))
+    lAX_TOTAL.append(ax.__round__(3))
+    lAY_TOTAL.append(ay.__round__(3))
+
+
+ayinicial = sum(lAY_TOTAL[10:-10])/len(lAY_TOTAL[10:-10])
+vyinicial = -ayinicial * tiempo_alturaMaxima
+##vyinicial = sum(lVY_TOTAL[:6])/len(lVY_TOTAL[:6])
 vxinicial = (lX_TOTAL[-1]-xinicial)/tiempoActual
 moduloV = np.sqrt(vxinicial**2 + vyinicial**2)
 anguloTiro = np.arccos(vxinicial/moduloV)
@@ -223,16 +260,16 @@ plt.xlim((-0.5,tiempoActual))
 plt.ylim((ALTURA,0))
 plt.subplot(121)
 
-k=0.9
 #thetaV = np.arctan((-trayectoriaY(k)-trayectoriaY(k-0.02))/(trayectoriaX(k)-trayectoriaX(k-0.02)))
-thetaV = np.arctan(-velocidadY(k)/velocidadX(k))
-# thetaV = np.pi/2
-plt.quiver(k,trayectoriaY(k), np.cos(thetaV),np.sin(thetaV),scale=1,scale_units='xy',color="r")
-plt.quiver(k,trayectoriaY(k), 0,-ay/4,scale=1,scale_units='xy',color="g")
+for i in range(0,3):
+    k=tiempoActual*((i+2)/6)
+    thetaV = np.arctan(-velocidadY(k)/velocidadX(k))
+    # thetaV = np.pi/2
+    plt.quiver(k,trayectoriaY(k), np.cos(thetaV),np.sin(thetaV),scale=1,scale_units='xy',color="r")
+    plt.quiver(k,trayectoriaY(k), 0,-ay/4,scale=1,scale_units='xy',color="g")
 
 plt.legend()
 plt.show()
-
 
 plt.figure(figsize=(7,5))
 plt.subplot(121)
@@ -253,7 +290,7 @@ data = {
     'PosX': lX_TOTAL,
     'PosY': lY_TOTAL,
     'VelX': lVX_TOTAL,
-    'VelY': lAY_TOTAL,
+    'VelY': lVY_TOTAL,
     'AcelY': lAY_TOTAL
 }
 # Imprimir las longitudes de cada lista
