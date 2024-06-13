@@ -1,0 +1,1 @@
+# Formulas, metodos y funciones de python utilizadas en el proyecto
